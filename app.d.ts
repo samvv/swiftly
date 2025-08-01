@@ -1,15 +1,6 @@
-import { BehaviorSubject } from "rxjs";
+import { AppProps } from "./src/app.tsx";
 
-export type RunAppOptions<U> = {
-  rootElement?: string | HTMLElement;
-  userSubject: BehaviorSubject<U | null>;
-};
+declare const App: AppType;
 
-export type Application = {
-  run<U>(opts: RunAppOptions<U>): void;
-};
-
-declare const app: Application;
-
-export default app;
+export default App;
 

@@ -43,6 +43,8 @@ export function App({ definitions }: AppProps) {
   );
 }
 
-export function defineApp(opts: DefineAppOptions): React.ElementType<Omit<AppProps, 'definitions'>> {
+export type AppType = React.ElementType<Omit<AppProps, 'definitions'>>
+
+export function defineApp(opts: DefineAppOptions): AppType {
   return props => <App definitions={opts} {...props} />
 }
