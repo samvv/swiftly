@@ -1,0 +1,30 @@
+{
+  "name": "@samvv/turboweb",
+  "version": "0.1.0",
+  "description": "Super-easy web app development framework",
+  "keywords": [
+    "web",
+    "framework",
+    "app",
+    "development"
+  ],
+  "homepage": "https://github.com/samvv/turboweb#readme",
+  "bugs": {
+    "url": "https://github.com/samvv/turboweb/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samvv/turboweb.git"
+  },
+  "license": "MIT",
+  "author": "Sam Vervaeck",
+  "type": "module",
+  "main": "lib/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "vite": "^7.0.6"
+  }
+}
