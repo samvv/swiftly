@@ -11,34 +11,32 @@
 import { BehaviorSubject } from "rxjs";
 import { useSubjectValue } from "./hooks.js";
 import { pathToRegexp } from "path-to-regexp";
-import { createContext, useContext } from "react";
-import { usePages } from "./app.js";
-
-const Context = createContext<History | null>(null);
-
-function useRouter() {
-  const router = useContext(Context);
-  if (router === null) {
-    throw new Error(`Could not find the main <Router />. You need to make sure your application is wrapped in <Router>...</Router>.`);
-  }
-  return router;
-}
+import { useApplication, usePages } from "./app.js";
 
 export type RedirectFn = (path: string) => void;
 
 export function useRedirect(): RedirectFn {
-  const router = useRouter();
-  return router.useRedirect();
+  const app = useApplication();
+  return app.history.useRedirect();
 }
 
 export function useUrl(): string {
-  const router = useRouter();
-  return router.useUrl();
+  const app = useApplication();
+  return app.history.useUrl();
 }
 
-interface History {
+export interface History {
+
   useUrl(): string;
+
   useRedirect(): RedirectFn;
+
+  /**
+   * Same as useUrl, but only get the pathname component of the URL.
+   *
+   * This function exists so that implementations may optimise this call.
+   */
+  usePathName(): string;
 }
 
 type HistoryExt = History & {
@@ -62,6 +60,11 @@ class BrowserHistory implements History {
     return useSubjectValue(this.urlSubject);
   }
 
+  public usePathName(): string {
+    // TODO might want to cache this in the future
+    return new URL(this.useUrl()).pathname;
+  }
+
   public useRedirect(): RedirectFn {
     return (path: string) => {
       const h = window.location;
@@ -79,10 +82,12 @@ class BrowserHistory implements History {
 
 class StaticHistory implements HistoryExt {
 
+  private pathname: string;
+
   public constructor(
     public url: string,
   ) {
-
+    this.pathname = new URL(url).pathname;
   }
 
   public useUrl(): string {
@@ -93,6 +98,10 @@ class StaticHistory implements HistoryExt {
     return (path: string) => {
       throw new Error(`Cannot redirect to ${path} while using a static router. Static routers only allow one fixed URL.`);
     }
+  }
+
+  public usePathName(): string {
+      return this.pathname;
   }
 
   public destroy(): void {
@@ -112,36 +121,6 @@ export function browserHistory(): History {
 
 export function staticHistory(url: string): History {
   return new StaticHistory(url);
-}
-
-export interface RouteSpec {
-  path: string;
-  title?: string;
-  component?: React.ElementType<any>;
-  hideMetaTitle?: boolean;
-  onEnter?: () => void;
-  auth?: boolean;
-}
-
-interface Route {
-  path: string;
-  regexp: RegExp;
-  title?: string;
-  component?: React.ElementType<any>;
-  onEnter?: () => void;
-  auth?: boolean;
-}
-
-export type RouterProps = {
-  history: History;
-}
-
-function matchPage(path: string, pages: Page[]): Page | undefined {
-  for (const page of pages) {
-    if (page.regexp.test(path)) {
-      return page;
-    }
-  }
 }
 
 export function Router({ history }: RouterProps) {
