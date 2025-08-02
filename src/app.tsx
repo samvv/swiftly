@@ -1,7 +1,7 @@
-import { createContext, useContext, useMemo } from "react";
+import { createContext, Suspense, useContext, useMemo } from "react";
 import { browserHistory, type History } from "./router.js"
 import { usePromise } from "./hooks.js";
-import { DefaultLayout } from "./DefaultLayout.js";
+import { assertNever } from "./util.js";
 
 type Exports = Record<string, any>;
 
@@ -17,8 +17,13 @@ type Page = {
   layout?: Page;
 };
 
+export type Meta = {
+  title?: string;
+}
+
 type Dir = {
   type: NodeType.Dir;
+  meta?: Meta;
   notFound?: Page;
   index?: Page;
   layout?: Page;
@@ -60,34 +65,55 @@ export type AppProps = {
   children: React.ReactNode;
 };
 
-function findPage(path: string, pages: Dir): Page {
+function findPage(path: string, pages: Dir): Node[] {
+
   const chunks = path === '/' ? [] : path.substring(1).split('/');
-  const stack = [ pages ];
-  let curr: Node | null = pages;
+
+  const stack: Node[] = [ pages ];
+
+  let match = true;
+
   for (const chunk of chunks) {
+    const curr = stack[stack.length-1];
     if (curr.type !== NodeType.Dir) {
-      curr = null;
+      match = false;
       break;
     }
     if (curr.children[chunk] === undefined) {
-      curr = null;
+      match = false
       break;
     }
-    curr = curr.children[chunk];
+    stack.push(curr.children[chunk])
   }
-  if (curr?.type === NodeType.Page) {
-    return curr;
-  }
-  if (curr?.type === NodeType.Dir && curr.index !== undefined) {
-    return curr.index;
-  }
-  for (let i = stack.length; i-- > 0;) {
-    if (stack[i].notFound !== undefined) {
-      return stack[i].notFound;
+
+  if (match) {
+    const curr = stack[stack.length-1];
+    if (curr.type === NodeType.Page) {
+      return stack;
+    }
+    if (curr.type === NodeType.Dir && curr.index !== undefined) {
+      stack.push(curr.index);
+      return stack;
     }
   }
-  // TODO add built-in 404 page
-  throw new Error(`No default 404 route found.`)
+
+  // Go up the stack and return the first 404 we can find
+  do {
+    const dir = stack[stack.length-1] as Dir;
+    if (dir.notFound !== undefined) {
+      stack.push(dir.notFound);
+      return stack;
+    }
+    stack.pop();
+  } while (stack.length > 0);
+
+  // If no 404s were found, return the built-in 404
+  return [
+    {
+      type: NodeType.Page,
+      load: () => import('./pages/404.js'),
+    }
+  ];
 }
 
 function assignLayouts(dir: Dir, layout?: Page): void {
@@ -97,9 +123,7 @@ function assignLayouts(dir: Dir, layout?: Page): void {
   if (layout === undefined) {
     layout = {
       type: NodeType.Page,
-      load: async () => ({
-        default: DefaultLayout,
-      }),
+      load: () => import('./pages/_layout.js'),
     };
   }
   const visit = (node: Node) => {
@@ -125,35 +149,61 @@ function assignLayouts(dir: Dir, layout?: Page): void {
   }
 }
 
-async function getExports(page: Page) {
+async function getExports(page: Page): Promise<Exports> {
   if (page.exports !== undefined) {
     return page.exports;
   }
   const exports = await page.load();
   page.exports = exports;
+  console.log('assigned', page);
   return exports;
 }
 
+function makeTitle(stack: Node[]): string {
+  const page = stack[stack.length-1] as Page;
+  const out = [];
+  if (page.exports?.meta?.title) {
+    out.push(page.exports!.meta.title);
+  }
+  for (let i = stack.length-1; i-- > 0;) {
+    const dir = stack[i] as Dir;
+    if (dir.meta?.title) {
+      out.push(dir.meta.title);
+    }
+  }
+  return out.join(' • ');
+}
+
+function DefaultLoading() {
+  return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><h1>Loading ...</h1></div>
+}
+
 export function App({ definitions, history }: AppProps) {
-  const h = useMemo(() => history ?? browserHistory(), [ history ]);
-  const path = h.usePathName();
-  const page = findPage(path, definitions.pages);
-  const layoutExports = usePromise(() => getExports(page.layout), [ page.layout ]);
+  const cachedHistory = useMemo(() => history ?? browserHistory(), [ history ]);
+  const path = cachedHistory.usePathName();
+  const stack = findPage(path, definitions.pages);
+  const page = stack[stack.length-1] as Page;
+  const layoutExports = usePromise(() => getExports(page.layout!), [ page.layout ]);
   const pageExports = usePromise(() => getExports(page), [ page ]);
   const app = {
     pages: definitions.pages,
-    history: h
+    history: cachedHistory
   };
+  console.log(layoutExports)
   if (pageExports === undefined || layoutExports === undefined) {
-    return <h1>Loading ...</h1>
+    return <DefaultLoading />;
   }
+  console.log('render');
   const Layout = layoutExports.default;
   const C = pageExports.default;
   return (
     <Context.Provider value={app}>
-      <Layout {...pageExports.layoutProps ?? {}}>
-        <C />
-      </Layout>
+      <Suspense fallback="Loading ...">
+        <Layout {...pageExports.layoutProps ?? {}}>
+          <title>{makeTitle(stack)}</title>
+          <C />
+        </Layout>
+      </Suspense>
     </Context.Provider>
   );
 }

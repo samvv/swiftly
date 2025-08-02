@@ -10,8 +10,7 @@
 
 import { BehaviorSubject } from "rxjs";
 import { useSubjectValue } from "./hooks.js";
-import { pathToRegexp } from "path-to-regexp";
-import { useApplication, usePages } from "./app.js";
+import { useApplication } from "./app.js";
 
 export type RedirectFn = (path: string) => void;
 
@@ -121,57 +120,6 @@ export function browserHistory(): History {
 
 export function staticHistory(url: string): History {
   return new StaticHistory(url);
-}
-
-export function Router({ history }: RouterProps) {
-
-  const pages = usePages();
-  const loggedIn = useLoggedIn();
-
-  const urlText = history.useUrl();
-  const url = new URL(urlText);
-  const path = url.pathname;
-
-  let out = null;
-
-  const page = matchPage(path, pages);
-
-  if (!page) {
-    return <NotFound />
-  }
-
-  if (page.exports.mustAuthenticate && !loggedIn) {
-    return <Login />
-  }
-
-  if (page.exports.default) {
-    const C = page.component;
-    out = (
-      <>
-        <title>{page.title}</title>
-        <C />
-      </>
-    );
-  } else {
-    console.warn(`page '${page.path}' did not have any action specified.`);
-  }
-
-  return (
-    <Context.Provider value={history}>
-      {out}
-    </Context.Provider>
-  );
-}
-
-export function compileRoutes(routes: RouteSpec[]): Route[] {
-  return routes.map(spec => {
-    const { regexp, keys } = pathToRegexp(spec.path);
-    return {
-      ...spec,
-      regexp,
-      keys,
-    };
-  });
 }
 
 export type LinkProps = { to: string } & Omit<React.HTMLProps<HTMLAnchorElement>, 'href'>;

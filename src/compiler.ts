@@ -2,8 +2,9 @@ import t from "@babel/types"
 import { generate } from "@babel/generator"
 import path from "node:path"
 import fs from "node:fs/promises";
+import { PACKAGE, VIRTUAL_MODULE_ID } from "./constants.js";
 
-type CollectPagesOptions = {
+export type CollectPagesOptions = {
   root: string;
   extensions: string[];
 };
@@ -16,6 +17,10 @@ export async function collectPages({
   root,
   extensions,
 }: CollectPagesOptions): Promise<string> {
+
+  let nextTempId = 0;
+
+  const imports: t.Statement[] = [];
 
   async function traverse(dir: string = ''): Promise<t.Expression> {
 
@@ -36,20 +41,37 @@ export async function collectPages({
       return buildObject(props);
     }
 
+    // Find the meta file and import it if necessary
+    const meta = await resolve(path.join(root, dir, '_meta'));
+    if (meta) {
+      const id = generateId();
+      props.meta = t.identifier(id);
+      imports.push(
+        t.importDeclaration(
+          [
+            t.importDefaultSpecifier(
+              t.identifier(id),
+            ),
+          ],
+          t.stringLiteral(meta),
+        )
+      );
+    }
+
     // Find the layout file, if any, and add it to the definitions
-    const layout = await findAnyFile(extensions.map(ext => path.join(root, dir, `_layout${ext}`)));
+    const layout = await resolve(path.join(root, dir, '_layout'));
     if (layout) {
       props.layout = buildImport(layout);
     }
 
     // Find special status code pages
-    const notFound = await findAnyFile(extensions.map(ext => path.join(root, dir, `404${ext}`)));
+    const notFound = await resolve(path.join(root, dir, '404'));
     if (notFound) {
       props.notFound = buildImport(notFound);
     }
 
     // Find the index page
-    const index = await findAnyFile(extensions.map(ext => path.join(root, dir, `index${ext}`)));
+    const index = await resolve(path.join(root, dir, 'index'));
     if (index) {
       props.index = buildImport(index);
     }
@@ -73,7 +95,36 @@ export async function collectPages({
     return buildObject(props);
   }
 
-  return generate(await traverse()).code;
+  async function resolve(basePath: string): Promise<string | undefined> {
+    for (const ext of extensions) {
+      const fullPath = `${basePath}${ext}`;
+      if (await fileExists(fullPath)) {
+        return fullPath;
+      }
+    }
+  }
+
+  function generateId(): string {
+    return `__temp${nextTempId++}`;
+  }
+
+  const pagesExpr = await traverse();
+
+  const program = t.program([
+    t.importDeclaration(
+      [ t.importSpecifier(t.identifier('defineApp'), t.identifier('defineApp')) ],
+      t.stringLiteral(PACKAGE)
+    ),
+    ...imports,
+    t.exportDefaultDeclaration(
+      t.callExpression(
+        t.identifier('defineApp'),
+        [ buildObject({ pages: pagesExpr }) ],
+      )
+    )
+  ]);
+
+  return generate(program).code
 }
 
 async function fileExists(p: string): Promise<boolean> {
@@ -87,14 +138,6 @@ async function fileExists(p: string): Promise<boolean> {
     throw e;
   }
   return true;
-}
-
-async function findAnyFile(paths: string[]): Promise<string | undefined> {
-  for (const path of paths) {
-    if (await fileExists(path)) {
-      return path;
-    }
-  }
 }
 
 function buildObject(props: Record<string, t.Expression>) {

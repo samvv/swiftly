@@ -1,3 +1,4 @@
+import { warn } from "console";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BehaviorSubject } from "rxjs";
 
@@ -30,21 +31,38 @@ const enum FetchState {
   Success,
 }
 
-export type UsePromiseResult<T> = {
-  isSuccess: boolean;
-  isError: boolean;
-  isPending: boolean;
-  data?: T;
+export type UsePromiseResult<T> = UsePromiseSuccess<T> | UsePromisePending | UsePromiseError;
+
+type UsePromisePending = {
+  isSuccess: false;
+  isError: false;
+  isPending: true;
+};
+
+type UsePromiseSuccess<T> = {
+  isSuccess: true;
+  isError: false;
+  isPending: false;
+  data: T;
+};
+
+type UsePromiseError = {
+  isSuccess: false;
+  isError: true;
+  isPending: false;
 };
 
 export function usePromise<T>(callback: () => Promise<T>, deps: any[]): T | undefined {
-  const forceUpdate = useForceUpdate();
-  const result = useRef<T>(undefined);
+  const [state, setState] = useState<T | undefined>(undefined);
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      result.current = await callback();
-      forceUpdate()
+      const result = await callback();
+      if (!cancelled) {
+        setState(result);
+      }
     })();
+    return () => { cancelled = true; };
   }, deps);
-  return result.current
+  return state;
 }
