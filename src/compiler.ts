@@ -65,10 +65,10 @@ export async function collectPages({
     }
 
     // Find special status code pages
-    const notFound = await resolve(path.join(root, dir, '404'));
-    if (notFound) {
-      props.notFound = buildImport(notFound);
-    }
+    // const notFound = await resolve(path.join(root, dir, '404'));
+    // if (notFound) {
+    //   props.notFound = buildImport(notFound);
+    // }
 
     // Find the index page
     const index = await resolve(path.join(root, dir, 'index'));
@@ -79,7 +79,7 @@ export async function collectPages({
     const children = {} as Record<string, t.Expression>;
     for await (const entry of await fs.opendir(path.join(root, dir))) {
       const name = getNameFromFilePath(entry.name);
-      if ((!entry.isFile() && !entry.isDirectory()) || entry.name.startsWith('_') || !Number.isNaN(Number(getNameFromFilePath(entry.name)))) {
+      if ((!entry.isFile() && !entry.isDirectory()) || entry.name.startsWith('_')) {
         continue;
       }
       let child;

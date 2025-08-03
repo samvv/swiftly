@@ -1,6 +1,6 @@
 import { warn } from "console";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BehaviorSubject } from "rxjs";
+import { BehaviorSubject, Subject } from "rxjs";
 
 export function useForceUpdate(): VoidFunction {
   const [, setValue] = useState<Record<string, never>>(() => ({}));
@@ -16,6 +16,15 @@ export function useSubjectValue<T>(subject: BehaviorSubject<T>): T {
     return () => { subscription.unsubscribe(); }
   }, [ subject ]);
   return subject.value;
+}
+
+export function useSubjectValue2<T, U>(subject: Subject<T>, init: U): T | U {
+  const [state, setState] = useState<T | U>(init);
+  useEffect(() => {
+    const sub = subject.subscribe(value => setState(value));
+    return () => { sub.unsubscribe() };
+  }, [ subject ]);
+  return state
 }
 
 export function useSubjectState<T>(subject: BehaviorSubject<T>): [T, (value: T) => void] {

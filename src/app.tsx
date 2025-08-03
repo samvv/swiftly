@@ -1,4 +1,4 @@
-import { createContext, Suspense, useContext, useMemo } from "react";
+import { createContext, useContext, useMemo } from "react";
 import { browserHistory, type History } from "./router.js"
 import { usePromise } from "./hooks.js";
 import { assertNever } from "./util.js";
@@ -12,22 +12,24 @@ const enum NodeType {
 
 type Page = {
   type: NodeType.Page;
-  exports?: Record<string, any>;
+  exports?: Exports;
   load: () => Promise<Exports>,
   layout?: Page;
+  parent?: Dir;
 };
 
 export type Meta = {
   title?: string;
+  useIsAuthorized?(): boolean;
 }
 
 type Dir = {
   type: NodeType.Dir;
   meta?: Meta;
-  notFound?: Page;
   index?: Page;
   layout?: Page;
-  children: Record<string, Node>;
+  children: Record<number | string, Node>;
+  parent?: Dir;
 };
 
 type Node = Dir | Page;
@@ -65,16 +67,16 @@ export type AppProps = {
   children: React.ReactNode;
 };
 
-function findPage(path: string, pages: Dir): Node[] {
+type FindPageResult = [true, Page] | [false, Dir]
+
+function findPage(path: string, dir: Dir): FindPageResult {
 
   const chunks = path === '/' ? [] : path.substring(1).split('/');
 
-  const stack: Node[] = [ pages ];
-
+  let curr: Node = dir;
   let match = true;
 
   for (const chunk of chunks) {
-    const curr = stack[stack.length-1];
     if (curr.type !== NodeType.Dir) {
       match = false;
       break;
@@ -83,40 +85,30 @@ function findPage(path: string, pages: Dir): Node[] {
       match = false
       break;
     }
-    stack.push(curr.children[chunk])
+    curr = curr.children[chunk]
   }
 
+  // If the path was fully matched but we don't know yet with what
   if (match) {
-    const curr = stack[stack.length-1];
     if (curr.type === NodeType.Page) {
-      return stack;
+      return [true, curr];
     }
-    if (curr.type === NodeType.Dir && curr.index !== undefined) {
-      stack.push(curr.index);
-      return stack;
+    if (curr.index !== undefined) {
+      return [true, curr.index];
     }
   }
 
-  // Go up the stack and return the first 404 we can find
-  do {
-    const dir = stack[stack.length-1] as Dir;
-    if (dir.notFound !== undefined) {
-      stack.push(dir.notFound);
-      return stack;
-    }
-    stack.pop();
-  } while (stack.length > 0);
+  // If we arrived at a page but didn't parse the full path,
+  // we simply jump one level up for the context.
+  if (curr.type === NodeType.Page) {
+    curr = curr.parent!;
+  }
 
-  // If no 404s were found, return the built-in 404
-  return [
-    {
-      type: NodeType.Page,
-      load: () => import('./pages/404.js'),
-    }
-  ];
+  return [false, curr]
 }
 
-function assignLayouts(dir: Dir, layout?: Page): void {
+function assignProperties(dir: Dir, layout?: Page, parent?: Dir): void {
+  dir.parent = parent;
   if (dir.layout !== undefined) {
     layout = dir.layout;
   }
@@ -126,12 +118,13 @@ function assignLayouts(dir: Dir, layout?: Page): void {
       load: () => import('./pages/_layout.js'),
     };
   }
-  const visit = (node: Node) => {
+  const visit = (node: Node, parent: Dir) => {
     switch (node.type) {
       case NodeType.Dir:
-        assignLayouts(node, layout);
+        assignProperties(node, layout, parent);
         break;
       case NodeType.Page:
+        node.parent = parent;
         node.layout = layout;
         break;
       default:
@@ -139,13 +132,10 @@ function assignLayouts(dir: Dir, layout?: Page): void {
     }
   }
   if (dir.index !== undefined) {
-    visit(dir.index)
-  }
-  if (dir.notFound !== undefined) {
-    visit(dir.notFound);
+    visit(dir.index, dir)
   }
   for (const node of Object.values(dir.children)) {
-    visit(node);
+    visit(node, dir);
   }
 }
 
@@ -159,14 +149,12 @@ async function getExports(page: Page): Promise<Exports> {
   return exports;
 }
 
-function makeTitle(stack: Node[]): string {
-  const page = stack[stack.length-1] as Page;
+function makeTitle(page: Page): string {
   const out = [];
   if (page.exports?.meta?.title) {
     out.push(page.exports!.meta.title);
   }
-  for (let i = stack.length-1; i-- > 0;) {
-    const dir = stack[i] as Dir;
+  for (const dir of getParents(page.parent!)) {
     if (dir.meta?.title) {
       out.push(dir.meta.title);
     }
@@ -178,32 +166,96 @@ function DefaultLoading() {
   return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><h1>Loading ...</h1></div>
 }
 
-export function App({ definitions, history }: AppProps) {
-  const cachedHistory = useMemo(() => history ?? browserHistory(), [ history ]);
-  const path = cachedHistory.usePathName();
-  const stack = findPage(path, definitions.pages);
-  const page = stack[stack.length-1] as Page;
+type PageLoaderProps = {
+  page: Page;
+};
+
+function PageLoader({ page }: PageLoaderProps) {
   const layoutExports = usePromise(() => getExports(page.layout!), [ page.layout ]);
   const pageExports = usePromise(() => getExports(page), [ page ]);
+  if (pageExports === undefined || layoutExports === undefined) {
+    return <DefaultLoading />;
+  }
+  const Layout = layoutExports.default;
+  const C = pageExports.default;
+  return (
+    <Layout {...pageExports.layoutProps ?? {}}>
+      <title>{makeTitle(page)}</title>
+      <C />
+    </Layout>
+  );
+}
+
+type HTTPCode = number;
+
+function getSpecialPage(dir: Dir, code: HTTPCode) {
+
+  // Go up the hierarchy and return the first mathing special page we can find
+  for (;;) {
+    if (dir.children[code] !== undefined) {
+      return dir.children[code] as Page;
+    }
+    if (dir.parent === undefined) {
+      break;
+    }
+    dir = dir.parent;
+  }
+
+  // If no special pages were found we are in an exceptional situation and we should throw
+  throw new Error(`No special page with HTTP code ${code} was found. Either define one yourself or check that Swiftly is installed correctly.`);
+}
+
+function* getParents(node: Dir): Iterable<Dir> {
+  let curr: Dir | undefined = node;
+  for (;;) {
+    if (curr === undefined) {
+      break;
+    }
+    yield curr;
+    curr = curr.parent;
+  }
+}
+
+function Guard({ dir, children }) {
+  const isAuth = dir.meta.useIsAuthorized();
+  if (!isAuth) {
+    return <PageLoader page={getSpecialPage(dir, 403)} />;
+  }
+  return children;
+}
+
+export function App({ definitions, history }: AppProps) {
+  const cachedHistory = useMemo(() => history ?? browserHistory(), [ history ]);
   const app = {
     pages: definitions.pages,
     history: cachedHistory
   };
-  console.log(layoutExports)
-  if (pageExports === undefined || layoutExports === undefined) {
-    return <DefaultLoading />;
+  const path = cachedHistory.usePathName();
+  const [isMatch, node] = findPage(path, app.pages);
+
+  // We will render the page into this variable
+  let content = null;
+
+  // Empty content means we are authorized
+  if (content === null) {
+    if (!isMatch) {
+      content = <PageLoader page={getSpecialPage(node, 404)} />;
+    } else {
+      content = <PageLoader page={node} />;
+    }
   }
-  console.log('render');
-  const Layout = layoutExports.default;
-  const C = pageExports.default;
+
+  for (const parent of getParents(isMatch ? node.parent! : node)) {
+    const dir = parent as Dir;
+    const useIsAuthorizedFn = dir.meta?.useIsAuthorized;
+    if (useIsAuthorizedFn !== undefined) {
+      content = <Guard dir={parent}>{content}</Guard>
+    }
+  }
+
   return (
     <Context.Provider value={app}>
-      <Suspense fallback="Loading ...">
-        <Layout {...pageExports.layoutProps ?? {}}>
-          <title>{makeTitle(stack)}</title>
-          <C />
-        </Layout>
-      </Suspense>
+      {content}
     </Context.Provider>
   );
 }
@@ -211,6 +263,6 @@ export function App({ definitions, history }: AppProps) {
 export type AppType = React.ElementType<Omit<AppProps, 'definitions'>>
 
 export function defineApp(opts: DefineAppOptions): AppType {
-  assignLayouts(opts.pages);
+  assignProperties(opts.pages);
   return props => <App definitions={opts} {...props} />
 }
