@@ -2,7 +2,6 @@ import * as vite from "vite"
 import path from "node:path"
 import { collectPages } from "./compiler.js";
 import { VITE_PLUGIN_NAME, VIRTUAL_MODULE_ID } from "./constants.js";
-import { indent } from "./util.js";
 
 export function turboweb(): vite.Plugin {
 
