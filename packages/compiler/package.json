@@ -1,0 +1,33 @@
+{
+  "name": "@swiftly/compiler",
+  "version": "0.1.0",
+  "description": "Converts page structure to something the browser can understand",
+  "keywords": [
+    "compiler",
+    "transform",
+    "next",
+    "routes",
+    "file-system"
+  ],
+  "homepage": "https://github.com/samvv/swiftly#readme",
+  "bugs": {
+    "url": "https://github.com/samvv/swiftly/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samvv/swiftly.git"
+  },
+  "license": "MIT",
+  "author": "Sam Vervaeck",
+  "type": "module",
+  "main": "lib/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@babel/generator": "^7.28.0",
+    "@babel/types": "^7.28.2",
+    "@types/babel__generator": "^7.27.0",
+    "@types/node": "^24.1.0"
+  }
+}

@@ -1,9 +1,9 @@
 import * as vite from "vite"
 import path from "node:path"
-import { collectPages } from "./compiler.js";
+import { collectPages } from "@swiftly/compiler";
 import { VITE_PLUGIN_NAME, VIRTUAL_MODULE_ID } from "./constants.js";
 
-export function turboweb(): vite.Plugin {
+export default function createPlugin(): vite.Plugin {
 
   const resolvedVirtualModuleId = '\0' + VIRTUAL_MODULE_ID;
 

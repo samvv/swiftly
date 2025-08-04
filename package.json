@@ -1,39 +1,15 @@
 {
-  "name": "@samvv/turboweb",
-  "version": "0.1.0",
-  "description": "Super-easy web app development framework",
-  "keywords": [
-    "web",
-    "framework",
-    "app",
-    "development"
+  "name": "swiftly-workspace",
+  "workspaces": [
+    "packages/core",
+    "packages/compiler",
+    "packages/vite-plugin",
+    "packages/app",
+    "example"
   ],
-  "homepage": "https://github.com/samvv/turboweb#readme",
-  "bugs": {
-    "url": "https://github.com/samvv/turboweb/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/samvv/turboweb.git"
-  },
-  "license": "MIT",
-  "author": "Sam Vervaeck",
-  "type": "module",
-  "main": "lib/index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "devDependencies": {
-    "@types/node": "^24.1.0",
-    "@types/react": "^19.1.9",
-    "@types/react-dom": "^19.1.7",
-    "react": "^19.1.1",
-    "vite": "^7.0.6"
+    "@accelera/logger": "^0.1.2",
+    "typescript": "^5.9.2"
   },
-  "dependencies": {
-    "@babel/generator": "^7.28.0",
-    "@babel/types": "^7.28.2",
-    "@types/babel__generator": "^7.27.0",
-    "rxjs": "^7.8.2"
-  }
+  "type": "module"
 }
