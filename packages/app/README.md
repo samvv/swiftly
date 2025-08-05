@@ -20,6 +20,8 @@ routes of your app.
 You must integrate Swiftly with your web bundler of choice. Currently we only
 support [Vite][vite].
 
+[vite]: https://github.com/samvv/swiftly/tree/main/packages/vite-plugin
+
 ### 2. Configure your application
 
 **src/main.tsx**
