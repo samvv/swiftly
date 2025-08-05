@@ -1,11 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { turboweb } from "@samvv/turboweb/lib/plugin"
+import swiftly from "@swiftly/vite-plugin"
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    turboweb(),
+    swiftly(),
     react()
   ],
 });
