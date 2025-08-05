@@ -1,5 +1,4 @@
-import { warn } from "console";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BehaviorSubject, Subject } from "rxjs";
 
 export function useForceUpdate(): VoidFunction {
@@ -32,12 +31,6 @@ export function useSubjectState<T>(subject: BehaviorSubject<T>): [T, (value: T) 
     useSubjectValue(subject),
     subject.next.bind(subject),
   ]
-}
-
-const enum FetchState {
-  Pending,
-  Errored,
-  Success,
 }
 
 export type UsePromiseResult<T> = UsePromiseSuccess<T> | UsePromisePending | UsePromiseError;

@@ -216,8 +216,13 @@ function* getParents(node: Dir): Iterable<Dir> {
   }
 }
 
-function Guard({ dir, children }) {
-  const isAuth = dir.meta.useIsAuthorized();
+type GuardProps = {
+  dir: Dir;
+  children: React.ReactNode;
+};
+
+function Guard({ dir, children }: GuardProps) {
+  const isAuth = dir.meta!.useIsAuthorized!();
   if (!isAuth) {
     return <PageLoader page={getSpecialPage(dir, 403)} />;
   }
