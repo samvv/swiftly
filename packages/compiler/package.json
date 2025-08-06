@@ -2,6 +2,9 @@
   "name": "@swiftly/compiler",
   "version": "0.1.0",
   "description": "Converts page structure to something the browser can understand",
+  "scripts": {
+    "prepare": "tsc"
+  },
   "keywords": [
     "compiler",
     "transform",
@@ -21,9 +24,6 @@
   "author": "Sam Vervaeck",
   "type": "module",
   "main": "lib/index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "dependencies": {
     "@babel/generator": "^7.28.0",
     "@babel/types": "^7.28.2",
