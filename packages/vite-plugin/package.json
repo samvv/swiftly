@@ -22,5 +22,9 @@
   "license": "MIT",
   "author": "Sam Vervaeck",
   "type": "module",
-  "main": "lib/index.js"
+  "main": "lib/index.js",
+  "dependencies": {
+    "@swiftly/compiler": "^0.1.0",
+    "@swiftly/core": "^0.1.0"
+  }
 }

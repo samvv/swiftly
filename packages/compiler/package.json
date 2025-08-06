@@ -27,7 +27,10 @@
   "dependencies": {
     "@babel/generator": "^7.28.0",
     "@babel/types": "^7.28.2",
+    "@swiftly/core": "^0.1.0"
+  },
+  "devDependencies": {
     "@types/babel__generator": "^7.27.0",
-    "@types/node": "^24.1.0"
+    "@types/node": "^24.2.0"
   }
 }
