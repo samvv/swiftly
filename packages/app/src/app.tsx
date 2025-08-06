@@ -145,7 +145,6 @@ async function getExports(page: Page): Promise<Exports> {
   }
   const exports = await page.load();
   page.exports = exports;
-  console.log('assigned', page);
   return exports;
 }
 
