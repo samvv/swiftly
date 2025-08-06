@@ -7,6 +7,10 @@
     "packages/app",
     "example"
   ],
+  "scripts": {
+    "build": "tsc --build",
+    "watch": "tsc --build --watch"
+  },
   "devDependencies": {
     "@accelera/logger": "^0.1.2",
     "lerna": "^8.2.3",
