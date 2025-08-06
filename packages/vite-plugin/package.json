@@ -1,6 +1,6 @@
 {
   "name": "@swiftly/vite-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Develop Swiftly apps using Vite",
   "scripts": {
     "prepare": "tsc"
@@ -24,7 +24,7 @@
   "type": "module",
   "main": "lib/index.js",
   "dependencies": {
-    "@swiftly/compiler": "^0.1.0",
-    "@swiftly/core": "^0.1.0"
+    "@swiftly/compiler": "^0.1.1",
+    "@swiftly/core": "^0.1.1"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@swiftly/app",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Super-easy web app development framework",
   "scripts": {
     "prepare": "tsc"
