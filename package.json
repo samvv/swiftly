@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "build": "tsc --build",
-    "watch": "tsc --build --watch"
+    "watch": "tsc --build --watch",
+    "publish": "lerna publish"
   },
   "devDependencies": {
     "@accelera/logger": "^0.1.2",
