@@ -9,8 +9,9 @@ routes of your app.
 
 ## Features
 
+ - No hassle with SSR limitations
  - NextJS inspired directory structure for routing pages
- - Fast and easy authorization support using `useIsAuthorized`
+ - Fast and easy authorization support with `useIsAuthorized`
  - Inspection of generated routes for generating UI elements
 
 ## Quick Start
