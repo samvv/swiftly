@@ -13,12 +13,16 @@ export function getNameFromFilePath(fname: string): string {
   return path.basename(fname).split('.')[0];
 }
 
-export async function collectPages({
+export async function compile({
   root,
   extensions,
 }: CollectPagesOptions): Promise<string> {
 
+  // Used for poor man's identifier generator
   let nextTempId = 0;
+
+  // Will contain the generated code
+  let out = '';
 
   const imports: t.Statement[] = [];
 
@@ -108,23 +112,33 @@ export async function collectPages({
     return `__temp${nextTempId++}`;
   }
 
-  const pagesExpr = await traverse();
+  const pagesExpr = generate(await traverse()).code;
 
-  const program = t.program([
-    t.importDeclaration(
-      [ t.importSpecifier(t.identifier('defineApp'), t.identifier('defineApp')) ],
-      t.stringLiteral(PACKAGE)
-    ),
-    ...imports,
-    t.exportDefaultDeclaration(
-      t.callExpression(
-        t.identifier('defineApp'),
-        [ buildObject({ pages: pagesExpr }) ],
-      )
-    )
-  ]);
+  // Imports from 'external' packages
+  out += `import { BehaviorSubject } from "rxjs";\n`;
+  out += `import { defineApp, normalize } from "${PACKAGE}";\n`;
+  out += '\n';
 
-  return generate(program).code
+  // Imports to local pages
+  out += generate(t.program(imports)).code;
+
+  out += `export const pagesSubject = new BehaviorSubject(normalize(${pagesExpr}));
+
+`;
+
+  out += `if (import.meta.hot) {
+  import.meta.hot.accept(newModule => {
+    if (newModule) {
+      pagesSubject.next(normalize(newModule.pagesSubject.value));
+    }
+  });
+}
+
+`;
+
+  out += `export default defineApp({ pages: pagesSubject })`;
+
+  return out;
 }
 
 async function fileExists(p: string): Promise<boolean> {

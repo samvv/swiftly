@@ -1,7 +1,8 @@
 import { createContext, useContext, useMemo } from "react";
 import { browserHistory, type History } from "./router.js"
-import { usePromise } from "./hooks.js";
+import { usePromise, useSubjectValue } from "./hooks.js";
 import { assertNever } from "./util.js";
+import { BehaviorSubject, window } from "rxjs";
 
 type Exports = Record<string, any>;
 
@@ -10,7 +11,7 @@ const enum NodeType {
   Page = 1,
 }
 
-type Page = {
+export type Page = {
   type: NodeType.Page;
   exports?: Exports;
   load: () => Promise<Exports>,
@@ -23,7 +24,7 @@ export type Meta = {
   useIsAuthorized?(): boolean;
 }
 
-type Dir = {
+export type Dir = {
   type: NodeType.Dir;
   meta?: Meta;
   index?: Page;
@@ -32,11 +33,11 @@ type Dir = {
   parent?: Dir;
 };
 
-type Node = Dir | Page;
+export type Node = Dir | Page;
 
 type AppContext = {
   history: History;
-  pages: Dir;
+  pages: Dir | BehaviorSubject<Dir>;
 };
 
 const Context = createContext<AppContext | null>(null);
@@ -44,21 +45,17 @@ const Context = createContext<AppContext | null>(null);
 export function useApplication(): AppContext {
   const app = useContext(Context);
   if (app === null) {
-    throw new Error(`Trying to call a Turboweb hook without <App /> being present.`);
+    throw new Error(`Trying to call a Swiftly hook without <App /> being present.`);
   }
   return app;
 }
 
-export function usePages(): Dir {
-  return useApplication().pages;
-}
-
 export type Definitions = {
-  pages: Dir;
+  pages: BehaviorSubject<Dir> | Dir;
 };
 
 export type DefineAppOptions = {
-  pages: Dir;
+  pages: BehaviorSubject<Dir> | Dir;
 }
 
 export type AppProps = {
@@ -105,6 +102,11 @@ function findPage(path: string, dir: Dir): FindPageResult {
   }
 
   return [false, curr]
+}
+
+export function normalize(dir: Dir): Dir {
+  assignProperties(dir);
+  return dir;
 }
 
 function assignProperties(dir: Dir, layout?: Page, parent?: Dir): void {
@@ -228,14 +230,28 @@ function Guard({ dir, children }: GuardProps) {
   return children;
 }
 
+function useValue<T>(value: T | BehaviorSubject<T>): T {
+  if (import.meta.env?.DEV) {
+    return useSubjectValue(value as BehaviorSubject<T>);
+  } else {
+    return value as T;
+  }
+}
+
+export function usePages(): Dir {
+  const app = useApplication();
+  return useValue(app.pages);
+}
+
 export function App({ definitions, history }: AppProps) {
   const cachedHistory = useMemo(() => history ?? browserHistory(), [ history ]);
   const app = {
     pages: definitions.pages,
     history: cachedHistory
   };
+  const pages = useValue(app.pages);
   const path = cachedHistory.usePathName();
-  const [isMatch, node] = findPage(path, app.pages);
+  const [isMatch, node] = findPage(path, pages);
 
   // We will render the page into this variable
   let content = null;
@@ -267,6 +283,5 @@ export function App({ definitions, history }: AppProps) {
 export type AppType = React.ElementType<Omit<AppProps, 'definitions'>>
 
 export function defineApp(opts: DefineAppOptions): AppType {
-  assignProperties(opts.pages);
   return props => <App definitions={opts} {...props} />
 }

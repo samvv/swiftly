@@ -113,5 +113,5 @@
   "references": [
     { "path": "../core" }
   ],
-  "include": ["src", "app.d.ts"]
+  "include": ["src", "app.d.ts", "env.d.ts"]
 }
