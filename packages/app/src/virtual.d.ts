@@ -1,4 +1,4 @@
-import { AppProps } from "./src/app.tsx";
+import { AppType } from "./app.js";
 
 declare const App: AppType;
 
