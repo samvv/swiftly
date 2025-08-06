@@ -1,6 +1,6 @@
 {
   "name": "@swiftly/compiler",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Converts page structure to something the browser can understand",
   "scripts": {
     "prepare": "tsc"
@@ -27,7 +27,7 @@
   "dependencies": {
     "@babel/generator": "^7.28.0",
     "@babel/types": "^7.28.2",
-    "@swiftly/core": "^0.1.1"
+    "@swiftly/core": "^0.2.0"
   },
   "devDependencies": {
     "@types/babel__generator": "^7.27.0",
