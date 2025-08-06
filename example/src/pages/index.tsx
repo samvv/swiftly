@@ -27,6 +27,7 @@ export default function TaskList() {
   const { tasks, updateTask } = useTasks();
   return (
     <>
+      <Link to="/about">About Us</Link>
       <div>
         <a href="https://vite.dev" target="_blank">
           <img src={viteLogo} className="logo" alt="Vite logo" />
