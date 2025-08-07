@@ -1,8 +1,8 @@
-import { type Task, useTasks } from "../state"
-import reactLogo from '../assets/react.svg'
+import { type Task, useTasks } from "../src/state"
+import reactLogo from '../src/assets/react.svg'
 import viteLogo from '/vite.svg'
-import './index.css'
-import { Link } from "@swiftly/app";
+import './page.css';
+import { Link, usePages } from "@swiftly/app";
 
 type TaskProps = {
   value: Task;
@@ -24,9 +24,11 @@ function TaskEdit({ value, onUpdate }: TaskProps) {
 }
 
 export default function TaskList() {
+  const node = usePages();
   const { tasks, updateTask } = useTasks();
   return (
     <>
+      {Object.keys(node.children).join(',')}
       <Link to="/about">About Us</Link>
       <div>
         <a href="https://vite.dev" target="_blank">

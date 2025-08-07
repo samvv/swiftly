@@ -27,5 +27,5 @@
   "references": [
     { "path": "../packages/app" }
   ],
-  "include": ["src"]
+  "include": ["src", "app"]
 }

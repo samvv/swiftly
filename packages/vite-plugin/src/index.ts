@@ -13,8 +13,8 @@ export default function createPlugin(): vite.Plugin {
 
   let config: vite.ResolvedConfig;
 
-  function getPagesDir(): string {
-    return path.join(config.root, 'src', 'pages');
+  function getAppDir(): string {
+    return path.join(config.root, 'app');
   }
 
   return {
@@ -28,7 +28,7 @@ export default function createPlugin(): vite.Plugin {
       }
     },
     configureServer(server: vite.ViteDevServer) {
-      const pagesDir = getPagesDir();
+      const pagesDir = getAppDir();
       server.watcher.add(pagesDir);
       function onWatchChange(filepath: string) {
         if (pathInside(filepath, pagesDir)) {
@@ -37,7 +37,7 @@ export default function createPlugin(): vite.Plugin {
       }
       server.watcher.on('add', onWatchChange);
       server.watcher.on('unlink', onWatchChange);
-      server.watcher.on('change', onWatchChange);
+      // server.watcher.on('change', onWatchChange);
     },
     handleHotUpdate(ctx) {
         ctx.server.hot.send({ type: 'update', updates: [] });
@@ -45,7 +45,7 @@ export default function createPlugin(): vite.Plugin {
     async load(id) {
       if (id === resolvedVirtualModuleId) {
         return compile({
-          root: path.join(config.root, 'src', 'pages'),
+          root: getAppDir(),
           extensions: config.resolve.extensions,
         });
       }

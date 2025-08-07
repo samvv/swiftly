@@ -2,38 +2,49 @@ import { createContext, useContext, useMemo } from "react";
 import { browserHistory, type History } from "./router.js"
 import { usePromise, useSubjectValue } from "./hooks.js";
 import { assertNever } from "./util.js";
-import { BehaviorSubject, window } from "rxjs";
+import { BehaviorSubject } from "rxjs";
 
 type Exports = Record<string, any>;
+
+type LazyImport = { exports?: Exports } & (() => Promise<Exports>);
 
 const enum NodeType {
   Dir = 0,
   Page = 1,
 }
 
-export type Page = {
-  type: NodeType.Page;
-  exports?: Exports;
-  load: () => Promise<Exports>,
-  layout?: Page;
-  parent?: Dir;
-};
-
 export type Meta = {
+
+  /**
+   * The title of the page or directory.
+   *
+   * If left unspecified, the title of the parent directory will be used.
+   */
   title?: string;
+
+  /**
+   * A hook that gets called to determine whether the user may access the given page.
+   */
   useIsAuthorized?(): boolean;
 }
 
-export type Dir = {
-  type: NodeType.Dir;
+ interface NodeBase {
   meta?: Meta;
-  index?: Page;
-  layout?: Page;
-  children: Record<number | string, Node>;
+  layout?: LazyImport;
   parent?: Dir;
+  page?: LazyImport;
+  children?: Record<number | string, Node>;
 };
 
-export type Node = Dir | Page;
+export interface Page extends NodeBase {
+  page: LazyImport;
+};
+
+export interface Dir extends NodeBase {
+  children: Record<number | string, Node>;
+};
+
+export type Node = Page | Dir;
 
 type AppContext = {
   history: History;
@@ -74,7 +85,7 @@ function findPage(path: string, dir: Dir): FindPageResult {
   let match = true;
 
   for (const chunk of chunks) {
-    if (curr.type !== NodeType.Dir) {
+    if (typeof(curr.children) === 'undefined') {
       match = false;
       break;
     }
@@ -86,74 +97,54 @@ function findPage(path: string, dir: Dir): FindPageResult {
   }
 
   // If the path was fully matched but we don't know yet with what
-  if (match) {
-    if (curr.type === NodeType.Page) {
-      return [true, curr];
-    }
-    if (curr.index !== undefined) {
-      return [true, curr.index];
-    }
+  if (match && typeof(curr.page) !== 'undefined') {
+    return [true, curr as Page];
   }
 
   // If we arrived at a page but didn't parse the full path,
   // we simply jump one level up for the context.
-  if (curr.type === NodeType.Page) {
+  if (typeof(curr.children) === 'undefined') {
     curr = curr.parent!;
   }
 
-  return [false, curr]
+  return [false, curr as Dir]
 }
 
-export function normalize(dir: Dir): Dir {
-  assignProperties(dir);
-  return dir;
+export function normalize(node: Node): NodeBase {
+  assignProperties(node);
+  return node;
 }
 
-function assignProperties(dir: Dir, layout?: Page, parent?: Dir): void {
-  dir.parent = parent;
-  if (dir.layout !== undefined) {
-    layout = dir.layout;
-  }
+function assignProperties(node: Node, layout?: LazyImport, parent?: Dir): void {
+  node.parent = parent;
   if (layout === undefined) {
-    layout = {
-      type: NodeType.Page,
-      load: () => import('./pages/_layout.js'),
-    };
+    layout = () => import('./pages/layout.js');
   }
-  const visit = (node: Node, parent: Dir) => {
-    switch (node.type) {
-      case NodeType.Dir:
-        assignProperties(node, layout, parent);
-        break;
-      case NodeType.Page:
-        node.parent = parent;
-        node.layout = layout;
-        break;
-      default:
-        assertNever(node);
+  if (node.layout === undefined) {
+    node.layout = layout;
+  } else {
+    layout = node.layout;
+  }
+  if (typeof(node.children) !== 'undefined') {
+    for (const child of Object.values(node.children)) {
+      assignProperties(child, layout, node as Dir);
     }
   }
-  if (dir.index !== undefined) {
-    visit(dir.index, dir)
-  }
-  for (const node of Object.values(dir.children)) {
-    visit(node, dir);
-  }
 }
 
-async function getExports(page: Page): Promise<Exports> {
-  if (page.exports !== undefined) {
-    return page.exports;
+async function getExports(importer: LazyImport): Promise<Exports> {
+  if (importer.exports !== undefined) {
+    return importer.exports;
   }
-  const exports = await page.load();
-  page.exports = exports;
+  const exports = await importer();
+  importer.exports = exports;
   return exports;
 }
 
 function makeTitle(page: Page): string {
   const out = [];
-  if (page.exports?.meta?.title) {
-    out.push(page.exports!.meta.title);
+  if (page.meta?.title) {
+    out.push(page.meta.title);
   }
   for (const dir of getParents(page.parent!)) {
     if (dir.meta?.title) {
@@ -173,7 +164,7 @@ type PageLoaderProps = {
 
 function PageLoader({ page }: PageLoaderProps) {
   const layoutExports = usePromise(() => getExports(page.layout!), [ page.layout ]);
-  const pageExports = usePromise(() => getExports(page), [ page ]);
+  const pageExports = usePromise(() => getExports(page.page), [ page ]);
   if (pageExports === undefined || layoutExports === undefined) {
     return <DefaultLoading />;
   }
@@ -206,8 +197,8 @@ function getSpecialPage(dir: Dir, code: HTTPCode) {
   throw new Error(`No special page with HTTP code ${code} was found. Either define one yourself or check that Swiftly is installed correctly.`);
 }
 
-function* getParents(node: Dir): Iterable<Dir> {
-  let curr: Dir | undefined = node;
+function* getParents(node: Node): Iterable<Node> {
+  let curr: Node | undefined = node;
   for (;;) {
     if (curr === undefined) {
       break;
@@ -269,7 +260,7 @@ export function App({ definitions, history }: AppProps) {
     const dir = parent as Dir;
     const useIsAuthorizedFn = dir.meta?.useIsAuthorized;
     if (useIsAuthorizedFn !== undefined) {
-      content = <Guard dir={parent}>{content}</Guard>
+      content = <Guard dir={dir}>{content}</Guard>
     }
   }
 

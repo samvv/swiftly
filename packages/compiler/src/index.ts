@@ -2,16 +2,18 @@ import t from "@babel/types"
 import { generate } from "@babel/generator"
 import path from "node:path"
 import fs from "node:fs/promises";
-import { PACKAGE, VIRTUAL_MODULE_ID } from "./constants.js";
+import { PACKAGE } from "./constants.js";
 
 export type CollectPagesOptions = {
   root: string;
   extensions: string[];
 };
 
-export function getNameFromFilePath(fname: string): string {
+export function getFileStem(fname: string): string {
   return path.basename(fname).split('.')[0];
 }
+
+const SPECIALS = [ 'meta', 'page', 'layout' ];
 
 export async function compile({
   root,
@@ -26,27 +28,21 @@ export async function compile({
 
   const imports: t.Statement[] = [];
 
-  async function traverse(dir: string = ''): Promise<t.Expression> {
+  async function scanDir(dir: string = ''): Promise<t.Expression> {
 
     const props = {} as Record<string, t.Expression>;
 
     props.type = t.numericLiteral(0);
-
-    if (dir) {
-      props.path = t.stringLiteral(dir);
+    if (dir.length > 0) {
+      props.pathElement = t.stringLiteral(dir);
     }
 
-    const buildImport = (fname: string) => {
-      const name = getNameFromFilePath(fname);
-      const props = {} as Record<string, t.Expression>;
-      props.type = t.numericLiteral(1);
-      props.load = t.arrowFunctionExpression([], t.importExpression(t.stringLiteral(path.resolve(root, fname))));
-      // props.path = t.stringLiteral(name);
-      return buildObject(props);
+    function buildLazyImport(fname: string) {
+      return t.arrowFunctionExpression([], t.importExpression(t.stringLiteral(path.resolve(root, fname))));
     }
 
     // Find the meta file and import it if necessary
-    const meta = await resolve(path.join(root, dir, '_meta'));
+    const meta = await resolve(path.join(root, dir, 'meta'));
     if (meta) {
       const id = generateId();
       props.meta = t.identifier(id);
@@ -63,36 +59,28 @@ export async function compile({
     }
 
     // Find the layout file, if any, and add it to the definitions
-    const layout = await resolve(path.join(root, dir, '_layout'));
+    const layout = await resolve(path.join(root, dir, 'layout'));
     if (layout) {
-      props.layout = buildImport(layout);
+      props.layout = buildLazyImport(layout);
     }
 
-    // Find special status code pages
-    // const notFound = await resolve(path.join(root, dir, '404'));
-    // if (notFound) {
-    //   props.notFound = buildImport(notFound);
-    // }
-
     // Find the index page
-    const index = await resolve(path.join(root, dir, 'index'));
+    const index = await resolve(path.join(root, dir, 'page'));
     if (index) {
-      props.index = buildImport(index);
+      props.page = buildLazyImport(index);
     }
 
     const children = {} as Record<string, t.Expression>;
     for await (const entry of await fs.opendir(path.join(root, dir))) {
-      const name = getNameFromFilePath(entry.name);
-      if ((!entry.isFile() && !entry.isDirectory()) || entry.name.startsWith('_')) {
+      const stem = getFileStem(entry.name);
+      if (!entry.isDirectory()) {
+        // FIXME does not take file extensions into account
+        if (SPECIALS.indexOf(stem) === -1) {
+          console.warn(`Unknown special file ${entry.name}`);
+        }
         continue;
       }
-      let child;
-      if (entry.isDirectory()) {
-        child = await traverse(path.join(dir, entry.name));
-      } else {
-        child = buildImport(path.join(dir, entry.name));
-      }
-      children[name] = child;
+      children[stem] = await scanDir(path.join(dir, entry.name));;
     }
     props.children = buildObject(children);
 
@@ -112,7 +100,7 @@ export async function compile({
     return `__temp${nextTempId++}`;
   }
 
-  const pagesExpr = generate(await traverse()).code;
+  const pagesExpr = generate(await scanDir()).code;
 
   // Imports from 'external' packages
   out += `import { BehaviorSubject } from "rxjs";\n`;
@@ -122,14 +110,19 @@ export async function compile({
   // Imports to local pages
   out += generate(t.program(imports)).code;
 
-  out += `export const pagesSubject = new BehaviorSubject(normalize(${pagesExpr}));
+  out += `
 
-`;
+const pages = normalize(${pagesExpr});
 
-  out += `if (import.meta.hot) {
+const pagesSubject = new BehaviorSubject(pages);
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    import.meta.data.pages = pages;
+  });
   import.meta.hot.accept(newModule => {
     if (newModule) {
-      pagesSubject.next(normalize(newModule.pagesSubject.value));
+      pagesSubject.next(import.meta.hot.data.pages);
     }
   });
 }
